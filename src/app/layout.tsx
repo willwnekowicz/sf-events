@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { initializeApp } from "@/lib/cron";
+
+if (process.env.NEXT_RUNTIME !== "edge") {
+  initializeApp();
+}
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
