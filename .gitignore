@@ -42,3 +42,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database
+sf-events.db
+sf-events.db-wal
+sf-events.db-shm
