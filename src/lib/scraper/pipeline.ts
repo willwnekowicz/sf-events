@@ -6,6 +6,7 @@ import { scoreEvents } from "@/lib/claude/score-events";
 import { filterDuplicates } from "@/lib/claude/deduplicate";
 import { regenerateProfile } from "@/lib/claude/update-profile";
 import { geocodeAddress, computeDistanceMiles } from "@/lib/geocoding";
+import { mergeExistingEvents } from "@/lib/scraper/merge-events";
 
 export async function runScrapeCycle() {
   console.log(`[scraper] Starting scrape cycle at ${new Date().toISOString()}`);
@@ -135,6 +136,9 @@ export async function runScrapeCycle() {
       console.error(`[scraper] Error inserting event "${event.title}":`, err);
     }
   }
+
+  // Step 7: Merge duplicate events in the database
+  await mergeExistingEvents();
 
   console.log(`[scraper] Scrape cycle complete.`);
 }

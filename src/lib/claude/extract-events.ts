@@ -20,7 +20,7 @@ const EVENT_SCHEMA = `Return a JSON array of events. Each event object must have
 - address (string, full street address in San Francisco, or null)
 - description (string, 1-2 sentence summary, or null)
 - price (string like "Free", "$15", "$20-$45", or null)
-- url (string, direct link to event page, or null)
+- url (string, IMPORTANT: always include the direct link to the event listing page where you found it, or null only if truly unavailable)
 - imageUrl (string, event image URL, or null)
 
 Only include events in San Francisco / Bay Area. Only include events happening today or in the future. Return valid JSON only, no markdown.`;

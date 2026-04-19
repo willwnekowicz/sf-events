@@ -1,4 +1,5 @@
 import { ScoreBadge } from "./ScoreBadge";
+import { getSourceColor } from "@/lib/source-colors";
 
 interface EventRowProps {
   time: string | null;
@@ -7,6 +8,7 @@ interface EventRowProps {
   distanceMiles: number | null;
   price: string | null;
   description: string | null;
+  sources: { name: string; url: string | null }[];
   finalScore: number;
 }
 
@@ -17,6 +19,7 @@ export function EventRow({
   distanceMiles,
   price,
   description,
+  sources,
   finalScore,
 }: EventRowProps) {
   let borderColor = "border-red-500";
@@ -33,10 +36,20 @@ export function EventRow({
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-semibold text-white text-sm truncate">{title}</div>
-        <div className="text-neutral-400 text-xs">
-          {venue}
-          {distance && ` · ${distance}`}
-          {price && ` · ${price}`}
+        <div className="text-neutral-400 text-xs flex items-center gap-1.5 flex-wrap">
+          <span>
+            {venue}
+            {distance && ` · ${distance}`}
+            {price && ` · ${price}`}
+          </span>
+          {sources.map((s, i) => {
+            const colors = getSourceColor(s.name, "dark");
+            return (
+              <span key={i} className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${colors.bg} ${colors.text}`}>
+                {s.name}
+              </span>
+            );
+          })}
         </div>
         {description && (
           <div className="text-neutral-600 text-xs mt-1 line-clamp-2">{description}</div>

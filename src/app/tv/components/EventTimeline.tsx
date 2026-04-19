@@ -14,6 +14,7 @@ interface Event {
   distanceMiles: number | null;
   price: string | null;
   description: string | null;
+  sources: { name: string; url: string | null }[];
   finalScore: number;
 }
 
@@ -106,6 +107,7 @@ export function EventTimeline({ events }: EventTimelineProps) {
               distanceMiles={event.distanceMiles}
               price={event.price}
               description={event.description}
+              sources={event.sources}
               finalScore={event.finalScore}
             />
           ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getSourceColor } from "@/lib/source-colors";
 
 interface EventCardProps {
   id: number;
@@ -11,7 +12,7 @@ interface EventCardProps {
   distanceMiles: number | null;
   price: string | null;
   description: string | null;
-  url: string | null;
+  sources: { name: string; url: string | null }[];
   finalScore: number;
   interaction?: string | null;
   onInteract: (eventId: number, action: string) => void;
@@ -26,7 +27,7 @@ export function EventCard({
   distanceMiles,
   price,
   description,
-  url,
+  sources,
   finalScore,
   interaction,
   onInteract,
@@ -75,7 +76,7 @@ export function EventCard({
       text: title,
       dates,
       location: venue,
-      details: `${description ?? ""}\n\n${url ?? ""}`.trim(),
+      details: `${description ?? ""}\n\n${sources.find((s) => s.url)?.url ?? ""}`.trim(),
       ctz: "America/Los_Angeles",
     });
 
@@ -83,55 +84,82 @@ export function EventCard({
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 mb-3">
-      <div className="flex justify-between items-start">
-        <div className="flex-1 min-w-0">
+    <div className="bg-white border border-gray-200 rounded-lg p-3 mb-2 flex gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
           <h3 className="font-bold text-sm">{title}</h3>
-          <p className="text-xs text-gray-500 mt-1">
-            {timeStr && `${timeStr} · `}
-            {venue}
-            {distance && ` · ${distance}`}
-            {price && ` · ${price}`}
-          </p>
+          <span className={`${scoreColor} text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0`}>
+            {finalScore}
+          </span>
         </div>
-        <span className={`${scoreColor} text-xs font-bold px-2 py-0.5 rounded ml-2 flex-shrink-0`}>
-          {finalScore}
-        </span>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {timeStr && `${timeStr} · `}
+          {venue}
+          {distance && ` · ${distance}`}
+          {price && ` · ${price}`}
+        </p>
+        {description && (
+          <p className="text-xs text-gray-400 mt-1 line-clamp-1">{description}</p>
+        )}
+        {sources.length > 0 && (
+          <div className="flex gap-1 flex-wrap mt-1">
+            {sources.map((s, i) => (
+              <SourceChip key={i} source={s.name} url={s.url} eventTitle={title} />
+            ))}
+          </div>
+        )}
       </div>
 
-      {description && (
-        <p className="text-xs text-gray-400 mt-2">{description}</p>
-      )}
-
-      {interaction === "thumbs_down" ? (
-        <p className="text-xs text-gray-400 mt-3 text-center">Marked not interested</p>
-      ) : (
-        <div className="flex gap-2 mt-3">
-          <button
-            onClick={() => onInteract(id, "thumbs_up")}
-            className={`flex-1 text-center py-2 rounded-md text-xs font-semibold transition-colors ${
-              interaction === "thumbs_up"
-                ? "bg-green-100 border border-green-300 text-green-700"
-                : "bg-green-50 border border-green-200 text-green-600 hover:bg-green-100"
-            }`}
-          >
-            {interaction === "thumbs_up" ? "Interested!" : "Interested"}
-          </button>
-          <button
-            onClick={handleThumbsDown}
-            className="flex-1 text-center py-2 bg-red-50 border border-red-200 rounded-md text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
-          >
-            Not for me
-          </button>
-          <button
-            onClick={handleCalendar}
-            className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-md text-xs hover:bg-gray-200 transition-colors"
-          >
-            📅
-          </button>
-        </div>
-      )}
+      <div className="flex flex-col gap-1 flex-shrink-0 justify-center">
+        {interaction === "thumbs_down" ? (
+          <span className="text-[10px] text-gray-400">dismissed</span>
+        ) : (
+          <>
+            <button
+              onClick={() => onInteract(id, "thumbs_up")}
+              className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                interaction === "thumbs_up"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-green-50 text-green-600 hover:bg-green-100"
+              }`}
+              title="Interested"
+            >
+              👍
+            </button>
+            <button
+              onClick={handleThumbsDown}
+              className="px-2 py-1 rounded text-[11px] font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              title="Not for me"
+            >
+              👎
+            </button>
+            <button
+              onClick={handleCalendar}
+              className="px-2 py-1 rounded text-[11px] bg-gray-50 hover:bg-gray-100 transition-colors"
+              title="Add to calendar"
+            >
+              📅
+            </button>
+          </>
+        )}
+      </div>
     </div>
+  );
+}
+
+function SourceChip({ source, url, eventTitle }: { source: string; url: string | null; eventTitle: string }) {
+  const colors = getSourceColor(source, "light");
+  const href = url ?? `https://www.google.com/search?q=${encodeURIComponent(`${eventTitle} ${source} San Francisco`)}`;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${colors.bg} ${colors.text} hover:opacity-70 transition-opacity`}
+    >
+      {source}
+    </a>
   );
 }
 
