@@ -47,6 +47,17 @@ export const preferenceProfile = sqliteTable("preference_profile", {
   createdAt: text("created_at").notNull(),
 });
 
+export const scrapeRuns = sqliteTable("scrape_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sourceId: integer("source_id").notNull().references(() => sources.id),
+  status: text("status").notNull(), // 'success' | 'error' | 'empty'
+  eventsFound: integer("events_found").notNull().default(0),
+  errorMessage: text("error_message"),
+  startedAt: text("started_at").notNull(),
+  finishedAt: text("finished_at"),
+  durationMs: integer("duration_ms"),
+});
+
 export const geocodeCache = sqliteTable("geocode_cache", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   address: text("address").notNull().unique(),

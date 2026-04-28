@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { events, sources, interactions, preferenceProfile, geocodeCache } from "@/db/schema";
+import { events, sources, interactions, preferenceProfile, geocodeCache, scrapeRuns } from "@/db/schema";
 import { eq, and, lt, count, desc } from "drizzle-orm";
 import { extractEventsFromHtml, extractEventsViaWebSearch, type ExtractedEvent } from "@/lib/claude/extract-events";
 import { scoreEvents } from "@/lib/claude/score-events";
@@ -24,9 +24,12 @@ export async function runScrapeCycle() {
   const allNewEvents: Array<ExtractedEvent & { sourceName: string }> = [];
 
   for (const source of enabledSources) {
-    try {
-      let extracted: ExtractedEvent[] = [];
+    const startedAt = new Date();
+    let extracted: ExtractedEvent[] = [];
+    let status: "success" | "error" | "empty" = "success";
+    let errorMessage: string | null = null;
 
+    try {
       if (source.type === "venue" && source.url) {
         // Try direct HTML fetch first
         const res = await fetch(source.url, {
@@ -52,15 +55,34 @@ export async function runScrapeCycle() {
       const tagged = extracted.map((e) => ({ ...e, sourceName: source.name }));
       allNewEvents.push(...tagged);
 
-      // Update last scraped timestamp
-      await db
-        .update(sources)
-        .set({ lastScrapedAt: new Date().toISOString() })
-        .where(eq(sources.id, source.id));
-
+      if (extracted.length === 0) status = "empty";
       console.log(`[scraper] ${source.name}: found ${extracted.length} events`);
     } catch (err) {
+      status = "error";
+      errorMessage = err instanceof Error ? err.message : String(err);
       console.error(`[scraper] Error scraping ${source.name}:`, err);
+    }
+
+    const finishedAt = new Date();
+    const durationMs = finishedAt.getTime() - startedAt.getTime();
+
+    // Record run + update source last-scraped
+    try {
+      await db.insert(scrapeRuns).values({
+        sourceId: source.id,
+        status,
+        eventsFound: extracted.length,
+        errorMessage,
+        startedAt: startedAt.toISOString(),
+        finishedAt: finishedAt.toISOString(),
+        durationMs,
+      });
+      await db
+        .update(sources)
+        .set({ lastScrapedAt: finishedAt.toISOString() })
+        .where(eq(sources.id, source.id));
+    } catch (err) {
+      console.error(`[scraper] Failed to log run for ${source.name}:`, err);
     }
   }
 
