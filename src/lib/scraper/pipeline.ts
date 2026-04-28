@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { events, sources, interactions, preferenceProfile, geocodeCache, scrapeRuns } from "@/db/schema";
-import { eq, and, lt, count, desc } from "drizzle-orm";
+import { eq, and, lt, count, desc, inArray } from "drizzle-orm";
 import { extractEventsFromHtml, extractEventsViaWebSearch, type ExtractedEvent } from "@/lib/claude/extract-events";
 import { scoreEvents } from "@/lib/claude/score-events";
 import { filterDuplicates } from "@/lib/claude/deduplicate";
@@ -11,19 +11,30 @@ import { mergeExistingEvents } from "@/lib/scraper/merge-events";
 export async function runScrapeCycle() {
   console.log(`[scraper] Starting scrape cycle at ${new Date().toISOString()}`);
 
-  // Step 1: Clean up expired events (older than 7 days past)
+  // Step 1: Clean up expired events (older than 7 days past).
+  // Delete dependent interactions first to satisfy FK constraint.
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  await db.delete(events).where(lt(events.expiresAt, sevenDaysAgo.toISOString()));
+  const expiredEvents = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(lt(events.expiresAt, sevenDaysAgo.toISOString()));
+  if (expiredEvents.length > 0) {
+    const ids = expiredEvents.map((e) => e.id);
+    await db.delete(interactions).where(inArray(interactions.eventId, ids));
+    await db.delete(events).where(inArray(events.id, ids));
+  }
 
   // Step 2: Update preference profile if new interactions exist
   await maybeUpdateProfile();
 
-  // Step 3: Fetch events from all enabled sources
+  // Step 3: Fetch events from all enabled sources (bounded concurrency)
   const enabledSources = await db.select().from(sources).where(eq(sources.enabled, 1));
   const allNewEvents: Array<ExtractedEvent & { sourceName: string }> = [];
+  const CONCURRENCY = parseInt(process.env.SF_EVENTS_SCRAPE_CONCURRENCY ?? "3", 10);
 
-  for (const source of enabledSources) {
+  type Source = (typeof enabledSources)[number];
+  const scrapeOne = async (source: Source) => {
     const startedAt = new Date();
     let extracted: ExtractedEvent[] = [];
     let status: "success" | "error" | "empty" = "success";
@@ -51,7 +62,6 @@ export async function runScrapeCycle() {
         extracted = await extractEventsViaWebSearch(source.searchQuery, source.name);
       }
 
-      // Tag events with source name
       const tagged = extracted.map((e) => ({ ...e, sourceName: source.name }));
       allNewEvents.push(...tagged);
 
@@ -66,7 +76,6 @@ export async function runScrapeCycle() {
     const finishedAt = new Date();
     const durationMs = finishedAt.getTime() - startedAt.getTime();
 
-    // Record run + update source last-scraped
     try {
       await db.insert(scrapeRuns).values({
         sourceId: source.id,
@@ -84,7 +93,18 @@ export async function runScrapeCycle() {
     } catch (err) {
       console.error(`[scraper] Failed to log run for ${source.name}:`, err);
     }
-  }
+  };
+
+  // Simple worker-pool: drain sources queue with N parallel workers
+  const queue = [...enabledSources];
+  const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const next = queue.shift();
+      if (!next) break;
+      await scrapeOne(next);
+    }
+  });
+  await Promise.all(workers);
 
   if (allNewEvents.length === 0) {
     console.log("[scraper] No events found this cycle.");

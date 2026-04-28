@@ -1,4 +1,4 @@
-import { getClaudeClient } from "./client";
+import { runClaudeCode, extractJsonArray } from "./code-cli";
 
 export interface ExtractedEvent {
   title: string;
@@ -23,68 +23,47 @@ const EVENT_SCHEMA = `Return a JSON array of events. Each event object must have
 - url (string, IMPORTANT: always include the direct event detail page URL for that exact event, never a generic index/listing page or homepage; if search lands on an index page, follow through and return the detail page link, or null only if truly unavailable)
 - imageUrl (string, event image URL, or null)
 
-Only include events in San Francisco / Bay Area. Only include events happening today or in the future. Prefer canonical event detail URLs from the original source domain. Return valid JSON only, no markdown.`;
+Only include events in San Francisco / Bay Area. Only include events happening today or in the future. Prefer canonical event detail URLs from the original source domain. Return ONLY a valid JSON array (no prose, no markdown fences).`;
 
 export async function extractEventsFromHtml(
   html: string,
   sourceName: string
 ): Promise<ExtractedEvent[]> {
-  const client = getClaudeClient();
+  // Truncate HTML — we pass it inline to the CLI prompt.
+  const snippet = html.slice(0, 50_000);
+  const prompt = `Extract all upcoming events from this ${sourceName} events page HTML. ${EVENT_SCHEMA}
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `Extract all upcoming events from this ${sourceName} events page HTML. ${EVENT_SCHEMA}\n\nIf the HTML includes both list-page links and detail-page links, always choose the detail-page link for each event.\n\nHTML:\n${html.slice(0, 50000)}`,
-      },
-    ],
+If the HTML includes both list-page links and detail-page links, always choose the detail-page link for each event.
+
+HTML:
+${snippet}`;
+
+  const result = await runClaudeCode({
+    prompt,
+    // No tools needed — extracting from provided HTML
+    allowedTools: [],
+    timeoutMs: 180_000,
   });
-
-  return parseEventsResponse(response);
+  return extractJsonArray<ExtractedEvent>(result);
 }
 
 export async function extractEventsViaWebSearch(
   query: string,
   sourceName: string
 ): Promise<ExtractedEvent[]> {
-  const client = getClaudeClient();
   const today = new Date().toISOString().split("T")[0];
+  const prompt = `Search for: ${query}
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 4096,
-    tools: [
-      {
-        type: "web_search_20250305",
-        name: "web_search",
-        max_uses: 5,
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: `Search for: ${query}\n\nFind upcoming events from today (${today}) through the next 30 days. ${EVENT_SCHEMA}\n\nFor each result, click through until you have the exact event detail page URL, not an index page. After searching, compile all events you found into the JSON array format described above.`,
-      },
-    ],
+Find upcoming events from today (${today}) through the next 30 days for source: ${sourceName}.
+
+${EVENT_SCHEMA}
+
+Use WebSearch to find listings, then use WebFetch on each promising event's detail page to confirm date/venue and grab the canonical URL. Do not return index/listing URLs — always follow through to the event detail page. After gathering, output ONLY a JSON array of events (no prose, no markdown).`;
+
+  const result = await runClaudeCode({
+    prompt,
+    allowedTools: ["WebSearch", "WebFetch"],
+    timeoutMs: 300_000,
   });
-
-  return parseEventsResponse(response);
-}
-
-function parseEventsResponse(response: any): ExtractedEvent[] {
-  for (const block of response.content) {
-    if (block.type === "text") {
-      try {
-        const jsonMatch = block.text.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          return JSON.parse(jsonMatch[0]);
-        }
-      } catch {
-        console.error("Failed to parse events JSON:", block.text.slice(0, 200));
-      }
-    }
-  }
-  return [];
+  return extractJsonArray<ExtractedEvent>(result);
 }

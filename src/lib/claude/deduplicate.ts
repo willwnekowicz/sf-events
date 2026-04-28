@@ -1,4 +1,4 @@
-import { getClaudeClient } from "./client";
+import { runClaudeCode, extractJsonArray } from "./code-cli";
 import type { ExtractedEvent } from "./extract-events";
 
 interface ExistingEvent {
@@ -13,35 +13,25 @@ export async function filterDuplicates(
   if (existingEvents.length === 0) return newEvents;
   if (newEvents.length === 0) return [];
 
-  const client = getClaudeClient();
-
-  const existingList = existingEvents.map((e, i) => `${i}. "${e.title}" at ${e.venue}`).join("\n");
+  const existingList = existingEvents
+    .map((e, i) => `${i}. "${e.title}" at ${e.venue}`)
+    .join("\n");
   const newList = newEvents.map((e, i) => `${i}. "${e.title}" at ${e.venue}`).join("\n");
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1024,
-    messages: [
-      {
-        role: "user",
-        content: `Identify which new events are duplicates of existing events. Account for minor name/venue variations.\n\nEXISTING EVENTS:\n${existingList}\n\nNEW EVENTS:\n${newList}\n\nReturn a JSON array of new event indices that are NOT duplicates. Only valid JSON, no markdown.\nExample: [0, 2, 5]`,
-      },
-    ],
-  });
+  const prompt = `Identify which new events are duplicates of existing events. Account for minor name/venue variations.
 
-  for (const block of response.content) {
-    if (block.type === "text") {
-      try {
-        const jsonMatch = block.text.match(/\[[\s\S]*?\]/);
-        if (jsonMatch) {
-          const keepIndices: number[] = JSON.parse(jsonMatch[0]);
-          return keepIndices.filter((i) => i < newEvents.length).map((i) => newEvents[i]);
-        }
-      } catch {
-        console.error("Failed to parse dedup response:", block.text.slice(0, 200));
-      }
-    }
-  }
+EXISTING EVENTS:
+${existingList}
 
-  return newEvents;
+NEW EVENTS:
+${newList}
+
+Return ONLY a JSON array of new event indices that are NOT duplicates. No prose, no markdown.
+Example: [0, 2, 5]`;
+
+  const result = await runClaudeCode({ prompt, allowedTools: [], timeoutMs: 90_000 });
+  const keepIndices = extractJsonArray<number>(result);
+
+  if (keepIndices.length === 0) return newEvents;
+  return keepIndices.filter((i) => i < newEvents.length).map((i) => newEvents[i]);
 }
