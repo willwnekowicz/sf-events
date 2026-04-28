@@ -20,10 +20,10 @@ const EVENT_SCHEMA = `Return a JSON array of events. Each event object must have
 - address (string, full street address in San Francisco, or null)
 - description (string, 1-2 sentence summary, or null)
 - price (string like "Free", "$15", "$20-$45", or null)
-- url (string, IMPORTANT: always include the direct link to the event listing page where you found it, or null only if truly unavailable)
+- url (string, IMPORTANT: always include the direct event detail page URL for that exact event, never a generic index/listing page or homepage; if search lands on an index page, follow through and return the detail page link, or null only if truly unavailable)
 - imageUrl (string, event image URL, or null)
 
-Only include events in San Francisco / Bay Area. Only include events happening today or in the future. Return valid JSON only, no markdown.`;
+Only include events in San Francisco / Bay Area. Only include events happening today or in the future. Prefer canonical event detail URLs from the original source domain. Return valid JSON only, no markdown.`;
 
 export async function extractEventsFromHtml(
   html: string,
@@ -37,7 +37,7 @@ export async function extractEventsFromHtml(
     messages: [
       {
         role: "user",
-        content: `Extract all upcoming events from this ${sourceName} events page HTML. ${EVENT_SCHEMA}\n\nHTML:\n${html.slice(0, 50000)}`,
+        content: `Extract all upcoming events from this ${sourceName} events page HTML. ${EVENT_SCHEMA}\n\nIf the HTML includes both list-page links and detail-page links, always choose the detail-page link for each event.\n\nHTML:\n${html.slice(0, 50000)}`,
       },
     ],
   });
@@ -65,7 +65,7 @@ export async function extractEventsViaWebSearch(
     messages: [
       {
         role: "user",
-        content: `Search for: ${query}\n\nFind upcoming events from today (${today}) through the next 30 days. ${EVENT_SCHEMA}\n\nAfter searching, compile all events you found into the JSON array format described above.`,
+        content: `Search for: ${query}\n\nFind upcoming events from today (${today}) through the next 30 days. ${EVENT_SCHEMA}\n\nFor each result, click through until you have the exact event detail page URL, not an index page. After searching, compile all events you found into the JSON array format described above.`,
       },
     ],
   });

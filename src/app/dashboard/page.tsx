@@ -34,11 +34,11 @@ export default function DashboardPage() {
     fetchEvents();
   }, [fetchEvents]);
 
-  const handleInteract = async (eventId: number, action: string) => {
+  const handleInteract = async (eventId: number, action: string, note?: string) => {
     await fetch("/api/events/interact", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventId, action }),
+      body: JSON.stringify({ eventId, action, note }),
     });
 
     // Update local state optimistically, then refetch

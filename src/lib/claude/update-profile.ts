@@ -5,6 +5,7 @@ interface InteractionRecord {
   eventTitle: string;
   eventDescription: string | null;
   eventVenue: string;
+  note?: string | null;
 }
 
 export async function regenerateProfile(
@@ -18,7 +19,7 @@ export async function regenerateProfile(
   const interactionList = interactions
     .map(
       (i) =>
-        `${i.action === "thumbs_up" ? "LIKED" : i.action === "thumbs_down" ? "DISLIKED" : "ADDED TO CALENDAR"}: "${i.eventTitle}" at ${i.eventVenue}${i.eventDescription ? ` — ${i.eventDescription}` : ""}`
+        `${i.action === "thumbs_up" ? "LIKED" : i.action === "thumbs_down" ? "DISLIKED" : "ADDED TO CALENDAR"}: "${i.eventTitle}" at ${i.eventVenue}${i.eventDescription ? ` — ${i.eventDescription}` : ""}${i.note ? `\nReason: ${i.note}` : ""}`
     )
     .join("\n");
 

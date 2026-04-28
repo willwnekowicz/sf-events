@@ -36,6 +36,7 @@ export const interactions = sqliteTable("interactions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   eventId: integer("event_id").notNull().references(() => events.id),
   action: text("action").notNull(),
+  note: text("note"),
   createdAt: text("created_at").notNull(),
 });
 

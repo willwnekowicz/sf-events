@@ -14,6 +14,7 @@ export async function GET() {
     .select({
       id: interactions.id,
       action: interactions.action,
+      note: interactions.note,
       createdAt: interactions.createdAt,
       eventTitle: events.title,
       eventVenue: events.venue,

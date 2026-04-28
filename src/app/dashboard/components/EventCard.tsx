@@ -15,7 +15,7 @@ interface EventCardProps {
   sources: { name: string; url: string | null }[];
   finalScore: number;
   interaction?: string | null;
-  onInteract: (eventId: number, action: string) => void;
+  onInteract: (eventId: number, action: string, note?: string) => void;
 }
 
 export function EventCard({
@@ -33,6 +33,8 @@ export function EventCard({
   onInteract,
 }: EventCardProps) {
   const [dismissed, setDismissed] = useState(false);
+  const [showNote, setShowNote] = useState(false);
+  const [note, setNote] = useState("");
 
   if (dismissed) return null;
 
@@ -45,7 +47,7 @@ export function EventCard({
   const timeStr = time ? formatTime(time) : null;
 
   const handleThumbsDown = () => {
-    onInteract(id, "thumbs_down");
+    onInteract(id, "thumbs_down", note);
     setDismissed(true);
   };
 
@@ -134,6 +136,13 @@ export function EventCard({
               👎
             </button>
             <button
+              onClick={() => setShowNote((v) => !v)}
+              className="px-2 py-1 rounded text-[11px] bg-gray-50 hover:bg-gray-100 transition-colors"
+              title="Optional note"
+            >
+              ✍️
+            </button>
+            <button
               onClick={handleCalendar}
               className="px-2 py-1 rounded text-[11px] bg-gray-50 hover:bg-gray-100 transition-colors"
               title="Add to calendar"
@@ -143,6 +152,18 @@ export function EventCard({
           </>
         )}
       </div>
+
+      {showNote && interaction !== "thumbs_down" && (
+        <div className="w-48 flex-shrink-0 self-center">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Optional: why isn't this a fit?"
+            className="w-full rounded-md border border-gray-200 p-2 text-[11px] text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
+            rows={3}
+          />
+        </div>
+      )}
     </div>
   );
 }

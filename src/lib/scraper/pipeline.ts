@@ -172,6 +172,7 @@ async function maybeUpdateProfile() {
       eventTitle: events.title,
       eventDescription: events.description,
       eventVenue: events.venue,
+      note: interactions.note,
     })
     .from(interactions)
     .innerJoin(events, eq(interactions.eventId, events.id));
