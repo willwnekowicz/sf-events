@@ -2,19 +2,32 @@ import cron from "node-cron";
 import { runScrapeCycle } from "@/lib/scraper/pipeline";
 import { seedDatabase } from "@/db/seed";
 
-let initialized = false;
+// Use globalThis so HMR module reloads don't register multiple cron tasks.
+const G = globalThis as unknown as {
+  __sfEventsInitialized?: boolean;
+  __sfEventsCronTask?: ReturnType<typeof cron.schedule>;
+};
 
 export function initializeApp() {
-  if (initialized) return;
-  initialized = true;
+  if (G.__sfEventsInitialized) return;
+  G.__sfEventsInitialized = true;
 
   // Seed database on first run
   seedDatabase().then(() => {
     console.log("[init] Database seeded (if needed).");
   });
 
+  // Stop any prior cron task lingering from a previous module instance
+  if (G.__sfEventsCronTask) {
+    try {
+      G.__sfEventsCronTask.stop();
+    } catch {
+      /* noop */
+    }
+  }
+
   // Run scrape cycle every 4 hours
-  cron.schedule("0 */4 * * *", async () => {
+  G.__sfEventsCronTask = cron.schedule("0 */4 * * *", async () => {
     console.log("[cron] Triggering scheduled scrape cycle...");
     try {
       await runScrapeCycle();
