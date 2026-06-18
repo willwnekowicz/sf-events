@@ -42,3 +42,7 @@ body {
   0% { transform: scale(0.8); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
+/* Interest tag fade-in — only newly mounted chips animate (existing ones persist) */
+.tag-in {
+  animation: lk-pop 0.28s ease-out both;
+}

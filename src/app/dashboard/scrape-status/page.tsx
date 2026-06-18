@@ -234,7 +234,15 @@ export default function ScrapeStatusPage() {
   };
 
   const job = bundle?.job ?? null;
-  const runs = bundle?.runs ?? [];
+  // Sort sources by events found (most productive first); tiebreak on new/name.
+  const runs = (bundle?.runs ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        b.extractedCount - a.extractedCount ||
+        b.insertedCount - a.insertedCount ||
+        a.sourceName.localeCompare(b.sourceName)
+    );
   const account = usageResp?.account;
 
   return (

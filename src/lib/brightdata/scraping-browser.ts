@@ -49,8 +49,9 @@ export async function fetchRenderedHtml(
   try {
     const pw = (await import("playwright-core")) as typeof import("playwright-core");
     browser = await pw.chromium.connectOverCDP(endpoint);
-    const ctx = await (browser as import("playwright-core").Browser).newContext();
-    const page = await ctx.newPage();
+    // Bright Data's Scraping Browser exposes a default context over CDP — use
+    // it directly (newPage) rather than spinning up a fresh context.
+    const page = await (browser as import("playwright-core").Browser).newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120_000 });
     if (opts.scroll) {
       // Nudge lazy-loaded lists a few times.

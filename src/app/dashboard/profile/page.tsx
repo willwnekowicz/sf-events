@@ -22,6 +22,23 @@ const ACTION_ICON: Record<string, string> = {
   calendar_added: "📅",
 };
 
+const INSIGHTS_KEY = "sf-events:profile-insights";
+
+// Union of cached + fresh tags: keep the cached order, append any new ones.
+// Lets the live refresh "add more" tags without flicker or reordering.
+function mergeTags(cached: string[] = [], fresh: string[] = [], cap = 14): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of [...cached, ...fresh]) {
+    const k = String(t).trim().toLowerCase();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(k);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
 function fmtTime(iso: string) {
   const d = new Date(iso);
   const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
@@ -49,13 +66,27 @@ export default function ProfilePage() {
     setHistory(data.history ?? []);
   }, []);
 
-  const fetchInsights = useCallback(async () => {
-    setInsightsLoading(true);
+  // Revalidate tags in the background. "merge" adds newly discovered tags to
+  // what's already shown (additive); "replace" takes the fresh set as
+  // authoritative (used after a profile edit, where stated prefs changed).
+  const fetchInsights = useCallback(async (mode: "merge" | "replace" = "merge") => {
     try {
-      const data = await fetch("/api/profile/insights").then((r) => r.json());
-      setInsights(data);
+      const fresh = (await fetch("/api/profile/insights").then((r) => r.json())) as Interests;
+      const safe: Interests = { likes: fresh?.likes ?? [], dislikes: fresh?.dislikes ?? [] };
+      setInsights((prev) => {
+        const next =
+          mode === "replace" || !prev
+            ? safe
+            : { likes: mergeTags(prev.likes, safe.likes), dislikes: mergeTags(prev.dislikes, safe.dislikes) };
+        try {
+          localStorage.setItem(INSIGHTS_KEY, JSON.stringify(next));
+        } catch {
+          /* ignore quota/private-mode */
+        }
+        return next;
+      });
     } catch {
-      setInsights({ likes: [], dislikes: [] });
+      setInsights((prev) => prev ?? { likes: [], dislikes: [] });
     } finally {
       setInsightsLoading(false);
     }
@@ -63,7 +94,18 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetchProfile();
-    fetchInsights();
+    // Paint cached tags from localStorage instantly, then revalidate in the
+    // background and merge in any new ones — no skeleton wait on repeat visits.
+    try {
+      const cached = localStorage.getItem(INSIGHTS_KEY);
+      if (cached) {
+        setInsights(JSON.parse(cached) as Interests);
+        setInsightsLoading(false);
+      }
+    } catch {
+      /* ignore */
+    }
+    fetchInsights("merge");
   }, [fetchProfile, fetchInsights]);
 
   const handleSave = async (text: string) => {
@@ -74,7 +116,7 @@ export default function ProfilePage() {
     });
     const data = await res.json();
     if (data.version) setVersion(data.version);
-    fetchInsights(); // profile changed → re-derive interest tags
+    fetchInsights("replace"); // profile changed → take the new authoritative set
   };
 
   return (
@@ -138,7 +180,7 @@ function TagGroup({ label, tags, tone }: { label: string; tags: string[]; tone: 
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {tags.map((t) => (
-            <span key={t} className={`text-xs px-2.5 py-1 rounded-full border ${chip}`}>
+            <span key={t} className={`tag-in text-xs px-2.5 py-1 rounded-full border ${chip}`}>
               {t}
             </span>
           ))}
