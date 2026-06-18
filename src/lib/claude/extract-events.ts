@@ -1,4 +1,10 @@
 import { runClaudeCode, extractJsonArray } from "./code-cli";
+import { htmlToText } from "@/lib/scraper/html-to-text";
+
+// Budget of *cleaned text* (not raw HTML) passed inline to the CLI prompt.
+// Raw HTML wasted this on boilerplate; after htmlToText the same budget holds
+// far more actual event content, so we can also afford a larger window.
+const EXTRACT_CHAR_BUDGET = 90_000;
 
 export interface ExtractedEvent {
   title: string;
@@ -25,45 +31,32 @@ const EVENT_SCHEMA = `Return a JSON array of events. Each event object must have
 
 Only include events in San Francisco / Bay Area. Only include events happening today or in the future. Prefer canonical event detail URLs from the original source domain. Return ONLY a valid JSON array (no prose, no markdown fences).`;
 
+/**
+ * Extract structured events from already-fetched page content. The `content`
+ * may be raw HTML (Web Unlocker / Scraping Browser), Markdown, or a concatenation
+ * of search-result pages — all that matters is the event details are present in
+ * the text. Fetching is Bright Data's job; this is pure text → JSON.
+ */
 export async function extractEventsFromHtml(
-  html: string,
+  content: string,
   sourceName: string
 ): Promise<ExtractedEvent[]> {
-  // Truncate HTML — we pass it inline to the CLI prompt.
-  const snippet = html.slice(0, 50_000);
-  const prompt = `Extract all upcoming events from this ${sourceName} events page HTML. ${EVENT_SCHEMA}
+  // Strip HTML boilerplate to dense text first, THEN truncate — otherwise the
+  // budget is spent on <head>/scripts/nav before reaching the event listings.
+  const snippet = htmlToText(content).slice(0, EXTRACT_CHAR_BUDGET);
+  const today = new Date().toISOString().split("T")[0];
+  const prompt = `Extract all upcoming events from this ${sourceName} content (may be HTML, Markdown, or concatenated search-result pages). Today is ${today}; only include events happening today or later. ${EVENT_SCHEMA}
 
-If the HTML includes both list-page links and detail-page links, always choose the detail-page link for each event.
+If both list-page links and detail-page links are present, always choose the detail-page link for each event.
 
-HTML:
+CONTENT:
 ${snippet}`;
 
   const result = await runClaudeCode({
     prompt,
-    // No tools needed — extracting from provided HTML
+    // No tools needed — extracting from provided content.
     allowedTools: [],
     timeoutMs: 180_000,
-  });
-  return extractJsonArray<ExtractedEvent>(result);
-}
-
-export async function extractEventsViaWebSearch(
-  query: string,
-  sourceName: string
-): Promise<ExtractedEvent[]> {
-  const today = new Date().toISOString().split("T")[0];
-  const prompt = `Search for: ${query}
-
-Find upcoming events from today (${today}) through the next 30 days for source: ${sourceName}.
-
-${EVENT_SCHEMA}
-
-Use WebSearch to find listings, then use WebFetch on each promising event's detail page to confirm date/venue and grab the canonical URL. Do not return index/listing URLs — always follow through to the event detail page. After gathering, output ONLY a JSON array of events (no prose, no markdown).`;
-
-  const result = await runClaudeCode({
-    prompt,
-    allowedTools: ["WebSearch", "WebFetch"],
-    timeoutMs: 300_000,
   });
   return extractJsonArray<ExtractedEvent>(result);
 }

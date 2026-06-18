@@ -36,7 +36,7 @@ export function ProfileEditor({ initialText, version, onSave }: ProfileEditorPro
       <textarea
         value={text}
         onChange={(e) => handleChange(e.target.value)}
-        className="w-full border border-gray-200 rounded px-3 py-2 text-sm h-40 resize-y"
+        className="w-full border border-gray-200 rounded px-3 py-2 text-sm h-72 leading-relaxed resize-y"
       />
       <button
         onClick={handleSave}

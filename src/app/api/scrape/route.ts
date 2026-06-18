@@ -1,28 +1,23 @@
 import { NextResponse } from "next/server";
-import { runScrapeCycle } from "@/lib/scraper/pipeline";
+import { startScrapeJob, isScrapeRunning } from "@/lib/scraper/pipeline";
 
-export const maxDuration = 800; // seconds — give the cycle plenty of headroom
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-let isRunning = false;
-
+/**
+ * Kicks off a scrape cycle in the background and returns its jobId immediately.
+ * The dashboard polls /api/scrape/jobs/[id] for live progress.
+ */
 export async function POST() {
-  if (isRunning) {
+  if (isScrapeRunning()) {
     return NextResponse.json({ error: "Scrape already in progress" }, { status: 409 });
   }
-
-  isRunning = true;
   try {
-    await runScrapeCycle();
-    return NextResponse.json({ success: true });
+    const jobId = await startScrapeJob("manual");
+    return NextResponse.json({ jobId });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[api/scrape] Error:", err);
-    return NextResponse.json(
-      { error: "Scrape failed", message },
-      { status: 500 }
-    );
-  } finally {
-    isRunning = false;
+    return NextResponse.json({ error: "Scrape failed to start", message }, { status: 500 });
   }
 }

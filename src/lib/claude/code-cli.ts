@@ -27,6 +27,27 @@ const ALL_TOOLS = [
 ];
 
 /**
+ * Build the environment for the spawned `claude` process.
+ *
+ * By default we STRIP `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` so the CLI
+ * falls back to the machine's logged-in Claude subscription (OAuth). The app's
+ * `.env.local` carries an `ANTHROPIC_API_KEY` for other purposes, but inheriting
+ * it here forces API-key mode — and that key is rejected ("Invalid API key"),
+ * which is why every scrape historically failed before parsing.
+ *
+ * Set `SF_EVENTS_USE_API_KEY=1` to keep the inherited key (e.g. if a valid one is
+ * supplied and you want metered API billing instead of the subscription).
+ */
+function childEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  if (process.env.SF_EVENTS_USE_API_KEY !== "1") {
+    delete env.ANTHROPIC_API_KEY;
+    delete env.ANTHROPIC_AUTH_TOKEN;
+  }
+  return env;
+}
+
+/**
  * Invokes Claude Code CLI in non-interactive mode and returns the assistant's
  * final result text. Prompt is sent via stdin to avoid argv length / quoting issues.
  */
@@ -56,7 +77,7 @@ export async function runClaudeCode({
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(CLAUDE_BIN, args, {
-      env: { ...process.env },
+      env: childEnv(),
       stdio: ["pipe", "pipe", "pipe"],
     });
 
